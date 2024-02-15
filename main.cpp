@@ -1,75 +1,123 @@
 #include <iostream>
+#include <algorithm>
 #include <vector>
-#include "objsdl/objsdl.h"
-#include "mylibraries/func.h"
+#include <SDL.h>
 
-using namespace std;
 
-SDL::Color NewColor(SDL::Color old, SDL::Color up, SDL::Color down, SDL::Color left, SDL::Color right)
+class Keyboard
 {
-	if(old.r==255)
+private:
+	int size;
+	const Uint8* keys;
+public:
+	Keyboard() : keys(SDL_GetKeyboardState(&size)) {}
+	bool IsPressed(SDL_Scancode value)const
 	{
-		return SDL::Color(255-func::Max(up.g, down.g, right.g, left.g), func::Max(up.g, down.g, right.g, left.g), 0);
+		return value < size && bool(keys[int(value)]);
 	}
-	else if(old.g==255)
+};
+
+enum class Cell : unsigned char
+{
+	Empty,
+	Rock,
+	Paper,
+	Scissors
+};
+
+SDL_Color ColorOf(Cell cell)
+{
+	switch (cell)
 	{
-		return SDL::Color(0, 255-func::Max(up.b, down.b, right.b, left.b), func::Max(up.b, down.b, right.b, left.b));
+	case Cell::Empty:
+		return SDL_Color{0, 0, 0, 255};
+	case Cell::Rock:
+		return SDL_Color{255, 0, 0, 255};
+	case Cell::Paper:
+		return SDL_Color{0, 255, 0, 255};
+	default:
+		return SDL_Color{0, 0, 255, 255};
 	}
-	else if(old.b==255)
-	{
-		return SDL::Color(func::Max(up.r, down.r, right.r, left.r), 0, 255-func::Max(up.r, down.r, right.r, left.r));
-	}
-	return SDL::Color(0,0,0);
 }
 
-int main(int argc, const char* argv[])try
+Cell Transition(Cell old, std::vector<Cell> neighbors)
 {
-	SDL::Window window("Kámen, nůžky, papír", SDL::Rect(70,70, 900, 600));
-	SDL::Renderer rend(window);
-	SDL::KeyboardState kb;
-	SDL::Surface field(SDL::Point(90,60), {SDL::Color(0,0,0), SDL::Color(255,0,0), SDL::Color(0,255,0), SDL::Color(0,0,255)}, 8);
-	bool repeat=true;
-	uint8 paintbrush_size=1;
-	while(repeat)
+	switch (old)
 	{
-		rend.Draw(field, field.Size(), rend.Size());
-		rend.Show();
-		if(SDL::Cursor::IsPressed())
+	case Cell::Rock:
+		return std::find(neighbors.begin(), neighbors.end(), Cell::Paper) != neighbors.end() ? Cell::Paper : Cell::Rock;
+	case Cell::Paper:
+		return std::find(neighbors.begin(), neighbors.end(), Cell::Scissors) != neighbors.end() ? Cell::Scissors : Cell::Paper;
+	case Cell::Scissors:
+		return std::find(neighbors.begin(), neighbors.end(), Cell::Rock) != neighbors.end() ? Cell::Rock : Cell::Scissors;
+	default:
+		return Cell::Empty;
+	}
+}
+
+constexpr int width = 100, height = 70, zoom = 12;
+
+struct Grid
+{
+	Cell grid[height][width] = {{Cell::Empty}};
+	Cell *operator[](int y)
+	{
+		return grid[y];
+	}
+};
+
+int main()
+{
+	SDL_Init(SDL_INIT_EVERYTHING);
+	SDL_Window *window = SDL_CreateWindow("Kámen, nůžky, papír", 50, 50, width * zoom, height * zoom, 0);
+	SDL_Renderer *rend = SDL_CreateRenderer(window, -1, 0);
+	Keyboard kb;
+
+	Grid grid;
+	bool repeat = true;
+	while (!SDL_QuitRequested())
+	{
+		for (int y = 0; y < height; ++y)
 		{
-			field.Draw(SDL::Cursor::Position()/10,
-					kb.IsPressed(SDL::Scancode::R)?SDL::Color(255,0,0):
-					kb.IsPressed(SDL::Scancode::G)?SDL::Color(0,255,0):
-					kb.IsPressed(SDL::Scancode::B)?SDL::Color(0,0,255):
-					SDL::Color(0,0,0));
-		}
-		for(auto& event:SDL::events::Handler())
-		{
-			if(event.Type()==SDL::events::Type::Quit)
+			for (int x = 0; x < width; ++x)
 			{
-				repeat=false;
+				SDL_Rect rect{x * zoom, y * zoom, zoom, zoom};
+				SDL_Color color = ColorOf(grid.grid[y][x]);
+				SDL_SetRenderDrawColor(rend, color.r, color.g, color.b, 255);
+				SDL_RenderFillRect(rend, &rect);
 			}
-			else if(event.Type()==SDL::events::Type::MouseWheel)
+		}
+		SDL_RenderPresent(rend);
+
+		int mouse_x = 0, mouse_y = 0;
+		if (SDL_GetMouseState(&mouse_x, &mouse_y))
+		{
+			int x = mouse_x / zoom, y = mouse_y / zoom;
+			if (x >= 0 && x < width && y >= 0 && y < height)
 			{
-				paintbrush_size+=event.MouseWheel().Move.y;
+				grid[y][x] = kb.IsPressed(SDL_SCANCODE_LCTRL) ? Cell::Rock
+						: kb.IsPressed(SDL_SCANCODE_LALT) ? Cell::Paper
+						: kb.IsPressed(SDL_SCANCODE_LSHIFT) ? Cell::Scissors
+						: Cell::Empty;
 			}
 		}
-		if(kb.IsPressed(SDL::Scancode::X))
+		if (kb.IsPressed(SDL_SCANCODE_SPACE))
 		{
-            SDL::Surface new_field(field.Size(), {SDL::Color(0,0,0), SDL::Color(255,0,0), SDL::Color(0,255,0), SDL::Color(0,0,255)}, 8);
-            for(int x=1; x<field.Size().x-1; ++x)
+			Grid new_grid;
+			for (int y = 1; y < height - 1; ++y)
 			{
-				for(int y=1; y<field.Size().y-1; ++y)
+				for (int x = 1; x < width - 1; ++x)
 				{
-					new_field.Draw(SDL::Point(x,y), NewColor(field[SDL::Point(x,y)], field[SDL::Point(x,y-1)], field[SDL::Point(x,y+1)], field[SDL::Point(x-1,y)], field[SDL::Point(x+1,y)]));
+					new_grid[y][x] = Transition(grid[y][x], {grid[y-1][x], grid[y+1][x], grid[y][x-1], grid[y][x+1]});
 				}
 			}
-			field=func::Move(new_field);
+			grid = new_grid;
 		}
-		SDL::Wait(20);
+		SDL_Delay(25);
 	}
+
+	SDL_DestroyRenderer(rend);
+	SDL_DestroyWindow(window);
+	SDL_Quit();
 	return 0;
-}
-catch(exception& exc)
-{
-	SDL::MessageBox::Show("Chyba", "Chybová hláška: '"s+exc.what()+"'");
 }
