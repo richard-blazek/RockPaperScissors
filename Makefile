@@ -1,2 +1,2 @@
-rps: main.cpp
-	g++ -o rps main.cpp -I/usr/include/SDL2 -D_REENTRANT -lSDL2
+rps: main.c
+	gcc -o rps main.c -I/usr/include/SDL2 -D_REENTRANT -lSDL2
