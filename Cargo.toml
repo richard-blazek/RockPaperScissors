@@ -1,0 +1,9 @@
+[package]
+name = "rock-paper-scissors"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+macroquad = "0.4.14"
+wasm-bindgen-futures = "0.4.50"
+web-sys = "0.3.77"
