@@ -1,4 +1,5 @@
 use macroquad::prelude::*;
+use macroquad::ui;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum Cell {
@@ -58,6 +59,8 @@ impl Playground {
 #[macroquad::main("Rock-paper-scissors")]
 async fn main() {
     let mut playground = Playground::new();
+    let mut brush = Cell::Rock;
+    let mut playing = false;
     let scale = 25.0;
 
     request_new_screen_size(playground.width() as f32 * scale, playground.height() as f32 * scale);
@@ -65,25 +68,38 @@ async fn main() {
     loop {
         clear_background(BLACK);
 
-        let (x, y) = mouse_position();
-        let x = ((x / scale) as usize).clamp(0, playground.width() - 1);
-        let y = ((y / scale) as usize).clamp(0, playground.height() - 1);
-
-        if is_key_down(KeyCode::Q) {
-            playground.0[y][x] = Cell::Rock;
-        } else if is_key_down(KeyCode::W) {
-            playground.0[y][x] = Cell::Paper;
-        } else if is_key_down(KeyCode::E) {
-            playground.0[y][x] = Cell::Scissors;
-        } else if is_key_down(KeyCode::R) {
-            playground.0[y][x] = Cell::Lizard;
-        } else if is_key_down(KeyCode::T) {
-            playground.0[y][x] = Cell::Spock;
-        } else if is_key_down(KeyCode::Delete) {
-            playground.0[y][x] = Cell::Empty;
+        if ui::root_ui().button(None, "Rock") {
+            brush = Cell::Rock;
+        }
+        if ui::root_ui().button(None, "Paper") {
+            brush = Cell::Paper;
+        }
+        if ui::root_ui().button(None, "Scissors") {
+            brush = Cell::Scissors;
+        }
+        if ui::root_ui().button(None, "Lizard") {
+            brush = Cell::Lizard;
+        }
+        if ui::root_ui().button(None, "Spock") {
+            brush = Cell::Spock;
+        }
+        if ui::root_ui().button(None, "Eraser") {
+            brush = Cell::Empty;
         }
 
-        if is_key_down(KeyCode::Space) {
+        if ui::root_ui().button(None, if playing {"Pause"} else {"Play"}) {
+            playing = !playing;
+        }
+
+        let (mouse_x, mouse_y) = mouse_position();
+        let x = ((mouse_x / scale) as usize).clamp(0, playground.width() - 1);
+        let y = ((mouse_y / scale) as usize).clamp(0, playground.height() - 1);
+
+        if is_mouse_button_down(MouseButton::Left) {
+            playground.0[y][x] = brush;
+        }
+
+        if playing {
             playground = playground.next();
         }
 
@@ -93,6 +109,7 @@ async fn main() {
             }
         }
 
+        draw_circle(mouse_x, mouse_y, scale / 4.0, brush.color());
         next_frame().await;
     }
 }
