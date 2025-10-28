@@ -18,8 +18,7 @@ impl Cell {
         }
     }
 
-    fn next(self, right: Cell, down: Cell, left: Cell, up: Cell) -> Cell {
-        let neighbours = [right, down, left, up];
+    fn next(self, neighbours: &[Cell]) -> Cell {
         match self {
             Cell::Rock | Cell::Spock if neighbours.contains(&Cell::Paper) => Cell::Paper,
             Cell::Rock | Cell::Scissors if neighbours.contains(&Cell::Spock) => Cell::Spock,
@@ -45,11 +44,20 @@ impl Playground {
         self.0[0].len()
     }
 
+    fn neighbours(&self, y: usize, x: usize) -> [Cell; 4] {
+        [
+            if y > 0 { self.0[y-1][x] } else { Cell::Empty },
+            if x > 0 { self.0[y][x-1] } else { Cell::Empty },
+            if y < self.height()-1 { self.0[y+1][x] } else { Cell::Empty },
+            if x < self.width()-1 { self.0[y][x+1] } else { Cell::Empty },
+        ]
+    }
+
     fn next(&self) -> Playground {
         let mut new = Playground::new();
-        for y in 1..self.height() - 1 {
-            for x in 1..self.width() - 1 {
-                new.0[y][x] = self.0[y][x].next(self.0[y][x+1], self.0[y+1][x], self.0[y][x-1], self.0[y-1][x]);
+        for y in 0..self.height() {
+            for x in 0..self.width() {
+                new.0[y][x] = self.0[y][x].next(&self.neighbours(y, x));
             }
         }
         new
